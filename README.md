@@ -1,23 +1,18 @@
 # AI Delegation Task (Study 6)
 
 The behavioural criterion task for Study 6 of the AI Delegation Scale (AIDS)
-project. Participants work with an AI agent, the "Decision Agent", on two short
-purchase tasks:
-
-| Part | Task | What it measures |
-| --- | --- | --- |
-| 1. Delegation | Choose a laptop that meets five requirements | Whether and how much people delegate to the agent, how closely they supervise it, and whether they catch its flawed choice |
-| 2. Advice | Choose between two monitors with balanced trade-offs | How far the agent's recommendation moves their own choice and confidence |
-
-Delegation comes first so that the primary criterion is measured before any
-experience of the agent. Participants never see the model name; on screen
-the system is always the Decision Agent.
+project. Participants choose a laptop with an AI agent, the "Decision Agent",
+deciding how much of the work to hand over to it. The task measures whether
+and how much people delegate, how closely they check the agent's work, whether
+they accept its flawed choice, and where they place responsibility.
+Participants never see the model name; on screen the system is always the
+Decision Agent.
 
 The app keeps the architecture of the CareerAdviceAI repository: Next.js on
 Vercel, embedded in Qualtrics via an `<iframe>`, the prompt held on the server,
 and data relayed to Qualtrics embedded data with `postMessage`.
 
-## Part 1: Delegation (laptop)
+## The task
 
 Seven laptops; Atlas 14 and Breeze 13 meet all five requirements. The agent
 first puts forward Granite 14 at £885, leaving out the £35 HDMI adapter it
@@ -31,7 +26,7 @@ forward Atlas 14.
 | Agent output | The agent puts forward Granite 14. What has already happened depends on the level (below). Four optional panels: reasoning and details (both reveal the £920 total), laptop table, requirements |
 | Revised output | Only after "reconsider". The agent puts forward Atlas 14; same panels; reconsider is not offered again |
 | Choose yourself | Self-choosers, and anyone who overrides the agent. Pick from the seven laptops |
-| Part 1 complete | Delegators rate responsibility (1 Entirely me to 7 Entirely the Decision Agent) |
+| End | Delegators rate responsibility (1 Entirely me to 7 Entirely the Decision Agent). Self-choosers finish as soon as they select |
 
 The three delegation levels differ in what the agent has already done, and so
 in what it takes to override it:
@@ -42,22 +37,11 @@ in what it takes to override it:
 | `approve` | A choice awaiting approval | `approve` | `reconsider` | `reject` |
 | `autonomous` | A finalised selection that can be undone | `keep` | `reconsider` (undoes it) | `undo` |
 
-## Part 2: Advice (monitor)
-
-A judge-advisor design. Two monitors within budget, each better on two
-attributes (Vista 27: cheaper, sharper; Horizon 27: single USB-C cable,
-adjustable stand), so there is no correct answer.
-
-1. Initial choice and confidence (1 to 7).
-2. The agent recommends the monitor the participant did not choose, citing
-   only that monitor's genuine advantages.
-3. Final choice and confidence. The initial choice is shown again.
-
 ## Agent outputs
 
-Every participant at a given point sees identical agent text. The four outputs
-(the flawed laptop choice, the revised laptop choice, and one recommendation per
-monitor) are fixed strings in `lib/study.js`. The server asks the model for them
+Every participant at a given point sees identical agent text. The two outputs
+(the flawed laptop choice and the revised laptop choice) are fixed strings in
+`lib/study.js`. The server asks the model for them
 under a fixed prompt (`CHATBOT_PROMPT.txt`) and compares its reply with the fixed
 string. `OUTPUT_MODE` sets what happens next:
 
@@ -69,42 +53,35 @@ string. `OUTPUT_MODE` sets what happens next:
 
 Every output a participant saw is listed in `d6_outputs` with its source, so
 any fallback is visible in the data. Pilot in `verified` mode and confirm the
-model reproduces all four outputs before launch.
+model reproduces both outputs before launch.
 
 ## Data recorded in Qualtrics
 
 | Field | Contents |
 | --- | --- |
 | `d6_delegation` | `self`, `recommend`, `approve`, or `autonomous` |
-| `d6_p1_action1` | Response to Granite 14: `accept`, `approve`, `keep`, `reconsider`, `choose_own`, `reject`, `undo`; empty for self |
-| `d6_p1_action2` | Response to Atlas 14 after reconsidering; otherwise empty |
-| `d6_p1_final_laptop` | Laptop selected at the end of Part 1 |
-| `d6_p1_final_valid` | 1 if it meets all five requirements, otherwise 0 |
-| `d6_p1_final_source` | `agent` (went along with the agent) or `own` (chose from the list) |
-| `d6_p1_accepted_flaw` | Delegators: 1 if they went along with Granite 14 without questioning it, otherwise 0 |
-| `d6_p1_responsibility` | Delegators: 1 (Entirely me) to 7 (Entirely the Decision Agent) |
-| `d6_p2_initial` | Initial monitor choice |
-| `d6_p2_initial_conf` | Confidence in the initial choice, 1 to 7 |
-| `d6_p2_rec` | Monitor the agent recommended (always the other one) |
-| `d6_p2_final` | Final monitor choice |
-| `d6_p2_final_conf` | Confidence in the final choice, 1 to 7 |
-| `d6_p2_switched` | 1 if the final choice is the agent's recommendation, otherwise 0 |
+| `d6_action1` | Response to Granite 14: `accept`, `approve`, `keep`, `reconsider`, `choose_own`, `reject`, `undo`; empty for self |
+| `d6_action2` | Response to Atlas 14 after reconsidering; otherwise empty |
+| `d6_final_laptop` | Laptop selected |
+| `d6_final_valid` | 1 if it meets all five requirements, otherwise 0 |
+| `d6_final_source` | `agent` (went along with the agent) or `own` (chose from the list) |
+| `d6_accepted_flaw` | Delegators: 1 if they went along with Granite 14 without questioning it, otherwise 0 |
+| `d6_responsibility` | Delegators: 1 (Entirely me) to 7 (Entirely the Decision Agent) |
 | `d6_panels` | JSON: panels opened on each screen (`working`, `output_first`, `output_revised`), in order |
 | `d6_outputs` | JSON: agent outputs shown and their source |
 | `d6_events` | JSON: timestamped log (ms from load) of every screen, panel, choice and rating |
-| `d6_complete` | 1 once both parts are finished |
+| `d6_complete` | 1 once the task is finished |
 
-Useful derived measures: any delegation (`d6_delegation` ≠ `self`); delegation
-level (1 to 4); verification (opened `reasoning` or `details` on
-`output_first`); signed preference shift in Part 2 (confidence towards the
-recommended monitor, before and after); time on each screen from `d6_events`.
+Useful derived measures: any delegation (`d6_delegation` is not `self`);
+delegation level (1 to 4); verification (opened `reasoning` or `details` on
+`output_first`); time on each screen from `d6_events`.
 
 ## Files
 
 | File | Role |
 | --- | --- |
-| `lib/study.js` | All task content: intro, requirements, laptops, level wording, panels, monitors, agent outputs, rating anchors |
-| `CHATBOT_PROMPT.txt` | The model's instructions: task briefings, shared style rules and one section per step. `#` lines are researcher notes and are stripped |
+| `lib/study.js` | All task content: intro, requirements, laptops, level wording, panels, agent outputs, rating anchors |
+| `CHATBOT_PROMPT.txt` | The model's instructions: task briefing, shared style rules and one section per step. `#` lines are researcher notes and are stripped |
 | `app/api/chat/route.js` | Validates the request, builds the prompt, calls OpenAI, checks the reply |
 | `app/page.js` | The task screens, information panels, event log and relay to Qualtrics |
 | `app/globals.css` | Styling |
@@ -151,5 +128,3 @@ so it ships with the serverless function, and sets
   though each request is a single short completion.
 - The data comes from the browser, so a technically skilled participant could
   alter what is posted to Qualtrics.
-- Part 1's flawed output may lower trust in the agent in Part 2. Use
-  `d6_p1_accepted_flaw` and the verification panels as covariates.

@@ -3,17 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CHATBOT_NAME,
-  CONFIDENCE,
   DELEGATION_CHOICES,
   INTRO,
   LAPTOPS,
   LEVELS,
-  MONITORS,
-  MONITOR_ATTRIBUTES,
   OUTPUT_PANELS,
-  P2_GOAL,
-  P2_LEAD,
-  P2_TITLE,
   PROGRESS_PANELS,
   RECOMMENDED_FIRST,
   RECOMMENDED_REVISED,
@@ -25,7 +19,6 @@ import {
   fmtWeight,
   laptopById,
   meetsRequirements,
-  otherMonitor,
 } from "../lib/study";
 
 // Pause after a reply arrives, before it is shown, so the Decision Agent does
@@ -94,33 +87,6 @@ function LaptopTable() {
               <td>{l.batteryH} h</td>
               <td>{fmtWeight(l.weightKg)}</td>
               <td>{l.hdmi ? "Yes" : "No"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function MonitorTable() {
-  return (
-    <div className="table-scroll">
-      <table className="laptops monitors">
-        <thead>
-          <tr>
-            <th scope="col">
-              <span className="visually-hidden">Feature</span>
-            </th>
-            <th scope="col">{MONITORS.A.name}</th>
-            <th scope="col">{MONITORS.B.name}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {MONITOR_ATTRIBUTES.map(({ key, label }) => (
-            <tr key={key}>
-              <th scope="row">{label}</th>
-              <td>{MONITORS.A[key]}</td>
-              <td>{MONITORS.B[key]}</td>
             </tr>
           ))}
         </tbody>
@@ -248,10 +214,6 @@ function ContinueButton({ disabled, onClick, children = "Continue" }) {
   );
 }
 
-function PartLabel({ part }) {
-  return <p className="part">{part === 1 ? "Task 1 of 2: Laptop" : "Task 2 of 2: Monitor"}</p>;
-}
-
 // Plain-language agent status shown in the header.
 function statusFor(screen, delegation, loading) {
   if (loading) return { text: "Working", tone: "busy" };
@@ -262,10 +224,8 @@ function statusFor(screen, delegation, loading) {
       if (delegation === "approve") return { text: "Waiting for your approval", tone: "ready" };
       if (delegation === "autonomous") return { text: "Selection finalised", tone: "ready" };
       return { text: "Recommendation ready", tone: "ready" };
-    case "p2_advice":
-      return { text: "Recommendation ready", tone: "ready" };
-    case "p1_end":
-      return { text: "Ready for task 2", tone: "done" };
+    case "end":
+      return { text: "Laptop selected", tone: "done" };
     case "done":
       return { text: "Task complete", tone: "done" };
     default:
@@ -276,20 +236,12 @@ function statusFor(screen, delegation, loading) {
 // ─── The task ────────────────────────────────────────────────────────────────
 
 const INITIAL_DATA = {
-  // Part 1
   delegation: "",
-  p1_action1: "", // first response to the agent's (flawed) output
-  p1_action2: "", // response to the revised output, if they asked it to reconsider
-  p1_final_laptop: "",
-  p1_final_source: "", // agent (went along with the agent) | own (chose from the list)
-  p1_responsibility: "", // 1-7, delegators only
-  // Part 2
-  p2_initial: "", // A | B
-  p2_initial_conf: "", // 1-7
-  p2_rec: "", // the monitor the agent recommended (always the other one)
-  p2_final: "",
-  p2_final_conf: "",
-  // Both
+  action1: "", // first response to the agent's (flawed) output
+  action2: "", // response to the revised output, if they asked it to reconsider
+  final_laptop: "",
+  final_source: "", // agent (went along with the agent) | own (chose from the list)
+  responsibility: "", // 1-7, delegators only
   panels: {}, // screen -> [panel codes, in order first opened]
   outputs: [], // agent replies actually shown, with their source
   events: [],
@@ -408,26 +360,20 @@ export default function Task() {
   // page is opened directly rather than inside the survey.
   useEffect(() => {
     if (typeof window === "undefined" || window.parent === window) return;
-    const final = data.p1_final_laptop ? laptopById(data.p1_final_laptop) : null;
+    const final = data.final_laptop ? laptopById(data.final_laptop) : null;
     const delegated = data.delegation && data.delegation !== "self";
     window.parent.postMessage(
       {
         type: POST_TYPE,
         delegation: data.delegation,
-        p1Action1: data.p1_action1,
-        p1Action2: data.p1_action2,
-        p1FinalLaptop: final ? final.name : "",
-        p1FinalValid: final ? (meetsRequirements(final) ? 1 : 0) : "",
-        p1FinalSource: data.p1_final_source,
+        action1: data.action1,
+        action2: data.action2,
+        finalLaptop: final ? final.name : "",
+        finalValid: final ? (meetsRequirements(final) ? 1 : 0) : "",
+        finalSource: data.final_source,
         // Went along with the flawed Granite 14 without questioning it.
-        p1AcceptedFlaw: delegated && data.p1_action1 ? (GO_ALONG.includes(data.p1_action1) ? 1 : 0) : "",
-        p1Responsibility: data.p1_responsibility,
-        p2Initial: data.p2_initial ? MONITORS[data.p2_initial].name : "",
-        p2InitialConf: data.p2_initial_conf,
-        p2Rec: data.p2_rec ? MONITORS[data.p2_rec].name : "",
-        p2Final: data.p2_final ? MONITORS[data.p2_final].name : "",
-        p2FinalConf: data.p2_final_conf,
-        p2Switched: data.p2_final ? (data.p2_final === data.p2_rec ? 1 : 0) : "",
+        acceptedFlaw: delegated && data.action1 ? (GO_ALONG.includes(data.action1) ? 1 : 0) : "",
+        responsibility: data.responsibility,
         panels: data.panels,
         outputs: data.outputs,
         events: data.events,
@@ -437,17 +383,18 @@ export default function Task() {
     );
   }, [data]);
 
-  // ── Part 1 ──
-
-  const revised = data.p1_action1 === "reconsider";
+  const revised = data.action1 === "reconsider";
   const putForward = revised ? RECOMMENDED_REVISED : RECOMMENDED_FIRST;
   const outputStep = revised ? "reconsider" : "recommend";
   const level = LEVELS[data.delegation];
 
-  const finishPart1 = (laptop, source) => {
+  // Selecting a laptop ends the task for self-choosers. Delegators first rate
+  // responsibility on the end screen.
+  const select = (laptop, source) => {
     log("select", `${laptop}:${source}`);
-    setData((d) => ({ ...d, p1_final_laptop: laptop, p1_final_source: source }));
-    go("p1_end");
+    const selfChooser = data.delegation === "self";
+    setData((d) => ({ ...d, final_laptop: laptop, final_source: source, complete: selfChooser }));
+    go(selfChooser ? "done" : "end");
   };
 
   const submitDelegation = () => {
@@ -464,10 +411,10 @@ export default function Task() {
   };
 
   const submitOutput = async () => {
-    const field = revised ? "p1_action2" : "p1_action1";
+    const field = revised ? "action2" : "action1";
     log("choice", `${field}:${choice}`);
     setData((d) => ({ ...d, [field]: choice }));
-    if (GO_ALONG.includes(choice)) return finishPart1(putForward, "agent");
+    if (GO_ALONG.includes(choice)) return select(putForward, "agent");
     if (choice === "reconsider") {
       go("output");
       return load("reconsider");
@@ -475,29 +422,11 @@ export default function Task() {
     go("choose");
   };
 
-  const submitChoose = () => finishPart1(choice, "own");
+  const submitChoose = () => select(choice, "own");
 
-  const submitPart1End = () => {
-    if (data.delegation !== "self") {
-      log("rating", `responsibility:${rating}`);
-      setData((d) => ({ ...d, p1_responsibility: rating }));
-    }
-    go("p2_initial");
-  };
-
-  // ── Part 2 ──
-
-  const submitInitial = async () => {
-    const rec = otherMonitor(choice);
-    log("choice", `p2_initial:${choice}:${rating}`);
-    setData((d) => ({ ...d, p2_initial: choice, p2_initial_conf: rating, p2_rec: rec }));
-    go("p2_advice");
-    await load(`monitor_${rec.toLowerCase()}`);
-  };
-
-  const submitFinal = () => {
-    log("choice", `p2_final:${choice}:${rating}`);
-    setData((d) => ({ ...d, p2_final: choice, p2_final_conf: rating, complete: true }));
+  const submitEnd = () => {
+    log("rating", `responsibility:${rating}`);
+    setData((d) => ({ ...d, responsibility: rating, complete: true }));
     go("done");
   };
 
@@ -506,8 +435,6 @@ export default function Task() {
   const status = statusFor(screen, data.delegation, loading);
   const outputScreen = revised ? "output_revised" : "output_first";
   const out = outputs[outputStep];
-  const p2Step = data.p2_rec ? `monitor_${data.p2_rec.toLowerCase()}` : "";
-  const p2Out = outputs[p2Step];
   const errorBox = error && (
     <div className="error" role="alert">
       {error}{" "}
@@ -517,8 +444,6 @@ export default function Task() {
     </div>
   );
 
-  const monitorChoices = ["A", "B"].map((k) => ({ code: k, label: MONITORS[k].name }));
-
   return (
     <main className="task" ref={topRef} data-ready={ready ? "1" : undefined}>
       <header className="task-header">
@@ -526,7 +451,7 @@ export default function Task() {
           <AgentMark size={34} />
           <div>
             <h1>{CHATBOT_NAME}</h1>
-            <p className="agent-sub">AI agent for purchase decisions</p>
+            <p className="agent-sub">AI agent for laptop purchase decisions</p>
           </div>
         </div>
         <div className={`agent-status tone-${status.tone}`} role="status" aria-live="polite">
@@ -539,7 +464,6 @@ export default function Task() {
         {screen === "delegate" && (
           <section>
             <p className="intro">{INTRO}</p>
-            <PartLabel part={1} />
             <h2>{TASK_TITLE}</h2>
             <TaskBrief goal={TASK_GOAL} lead={TASK_LEAD}>
               <RequirementsList />
@@ -560,7 +484,6 @@ export default function Task() {
 
         {screen === "working" && (
           <section>
-            <PartLabel part={1} />
             <h2>The Decision Agent is comparing the laptops</h2>
             <p>
               It is checking each laptop against your five requirements. You can open the panels
@@ -574,7 +497,6 @@ export default function Task() {
 
         {screen === "output" && level && (
           <section key={outputScreen}>
-            <PartLabel part={1} />
             <h2>{level.heading(revised)}</h2>
             {out && <p>{level.lead(laptopById(putForward).name, revised)}</p>}
             <AgentOutput thinking={loading || !out}>{out?.reply}</AgentOutput>
@@ -602,7 +524,6 @@ export default function Task() {
 
         {screen === "choose" && (
           <section>
-            <PartLabel part={1} />
             <h2>Choose a laptop yourself</h2>
             <TaskBrief goal={TASK_GOAL} lead={TASK_LEAD}>
               <RequirementsList />
@@ -620,96 +541,28 @@ export default function Task() {
           </section>
         )}
 
-        {screen === "p1_end" && (
+        {screen === "end" && (
           <section>
-            <PartLabel part={1} />
-            <h2>Task 1 complete</h2>
-            <p>Your laptop selection has been recorded.</p>
-            {data.delegation !== "self" && (
-              <Scale
-                name="responsibility"
-                question={RESPONSIBILITY.question}
-                low={RESPONSIBILITY.low}
-                mid={RESPONSIBILITY.mid}
-                high={RESPONSIBILITY.high}
-                value={rating}
-                onChange={setRating}
-              />
-            )}
-            <p className="hint">Next, you will choose a monitor in task 2.</p>
-            <ContinueButton
-              disabled={data.delegation !== "self" && !rating}
-              onClick={submitPart1End}
-            >
-              Continue to task 2
-            </ContinueButton>
-          </section>
-        )}
-
-        {screen === "p2_initial" && (
-          <section>
-            <PartLabel part={2} />
-            <h2>{P2_TITLE}</h2>
-            <TaskBrief goal={P2_GOAL} lead={P2_LEAD} />
-            <MonitorTable />
-            <ChoiceGroup
-              name="p2_initial"
-              legend="Which monitor do you choose?"
-              choices={monitorChoices}
-              value={choice}
-              onChange={setChoice}
-            />
+            <h2>Your laptop selection has been recorded</h2>
             <Scale
-              name="p2_initial_conf"
-              question={CONFIDENCE.question}
-              low={CONFIDENCE.low}
-              high={CONFIDENCE.high}
+              name="responsibility"
+              question={RESPONSIBILITY.question}
+              low={RESPONSIBILITY.low}
+              mid={RESPONSIBILITY.mid}
+              high={RESPONSIBILITY.high}
               value={rating}
               onChange={setRating}
             />
-            <ContinueButton disabled={!choice || !rating} onClick={submitInitial} />
-          </section>
-        )}
-
-        {screen === "p2_advice" && (
-          <section>
-            <PartLabel part={2} />
-            <h2>The Decision Agent’s recommendation</h2>
-            <p>
-              You chose {MONITORS[data.p2_initial].name}. The Decision Agent has compared the two
-              monitors and recommends {MONITORS[data.p2_rec].name}.
-            </p>
-            <AgentOutput thinking={loading || !p2Out}>{p2Out?.reply}</AgentOutput>
-            {errorBox}
-            {p2Out && (
-              <>
-                <MonitorTable />
-                <p className="hint">You can keep your choice or change it.</p>
-                <ChoiceGroup
-                  name="p2_final"
-                  legend="What is your final choice?"
-                  choices={monitorChoices}
-                  value={choice}
-                  onChange={setChoice}
-                />
-                <Scale
-                  name="p2_final_conf"
-                  question={CONFIDENCE.question}
-                  low={CONFIDENCE.low}
-                  high={CONFIDENCE.high}
-                  value={rating}
-                  onChange={setRating}
-                />
-                <ContinueButton disabled={!choice || !rating} onClick={submitFinal} />
-              </>
-            )}
+            <ContinueButton disabled={!rating} onClick={submitEnd}>
+              Finish
+            </ContinueButton>
           </section>
         )}
 
         {screen === "done" && (
           <section>
             <div className="done-note" role="status">
-              <strong>Both tasks are complete and your choices have been recorded.</strong> Please
+              <strong>The task is complete and your choices have been recorded.</strong> Please
               continue with the survey.
             </div>
           </section>

@@ -694,39 +694,6 @@ textarea::placeholder {
   }
 }
 
-/* ── Part label ─────────────────────────────────────────────────────────── */
-
-.part {
-  margin: 0 0 6px;
-  color: var(--slate);
-  font-size: 14px;
-  font-weight: 500;
-}
-
-/* ── Monitor comparison ─────────────────────────────────────────────────── */
-
-.monitors {
-  min-width: 0;
-  table-layout: fixed;
-}
-
-.monitors th,
-.monitors td {
-  white-space: normal;
-  vertical-align: top;
-}
-
-.monitors thead th:first-child,
-.monitors tbody th {
-  width: 22%;
-}
-
-.monitors thead th {
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 600;
-}
-
 /* ── 1 to 7 rating ──────────────────────────────────────────────────────── */
 
 .scale {
@@ -817,16 +784,5 @@ textarea::placeholder {
 
   .requirement dd {
     padding-left: 25px;
-  }
-
-  .monitors th,
-  .monitors td {
-    padding: 8px 9px;
-    font-size: 13px;
-  }
-
-  .monitors thead th:first-child,
-  .monitors tbody th {
-    width: 26%;
   }
 }

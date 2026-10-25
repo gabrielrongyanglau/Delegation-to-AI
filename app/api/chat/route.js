@@ -3,8 +3,6 @@ import path from "node:path";
 import OpenAI from "openai";
 import {
   LAPTOPS,
-  MONITORS,
-  MONITOR_ATTRIBUTES,
   OUTPUTS,
   REQUIREMENTS,
   fmtWeight,
@@ -46,8 +44,6 @@ const OUTPUT_MODE = ["verified", "model", "fixed"].includes(process.env.OUTPUT_M
 const STEPS = {
   recommend: ["LAPTOP_TASK", "RECOMMEND"],
   reconsider: ["LAPTOP_TASK", "RECONSIDER"],
-  monitor_a: ["MONITOR_TASK", "MONITOR_ADVICE"],
-  monitor_b: ["MONITOR_TASK", "MONITOR_ADVICE"],
 };
 
 const SECTIONS = (() => {
@@ -67,9 +63,6 @@ const SECTIONS = (() => {
 
 const describeLaptop = (l) =>
   `- ${l.name}: £${l.price}, ${l.os}, ${l.memoryGb} GB memory, ${l.storage} storage, ${l.batteryH} h battery, ${fmtWeight(l.weightKg)}, HDMI port: ${l.hdmi ? "Yes" : "No"}`;
-
-const describeMonitor = (m) =>
-  `- ${m.name}: ` + MONITOR_ATTRIBUTES.map(({ key, label }) => `${label.toLowerCase()}: ${m[key]}`).join("; ");
 
 function fill(template, values) {
   return template.replace(/\{([A-Z_]+)\}/g, (match, key) => (key in values ? String(values[key]) : match));
@@ -115,7 +108,6 @@ export async function POST(req) {
       fill(s, {
         REQUIREMENTS: REQUIREMENTS.map((r) => `- ${r.label}: ${r.text}`).join("\n"),
         LAPTOPS: LAPTOPS.map(describeLaptop).join("\n"),
-        MONITORS: Object.values(MONITORS).map(describeMonitor).join("\n"),
         EXPECTED: expected,
       }),
     )
