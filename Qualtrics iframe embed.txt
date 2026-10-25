@@ -11,15 +11,25 @@ Survey Flow -> Add a New Element -> Embedded Data -> add these fields, with
 empty values, ABOVE the block containing the task question:
 
     d6_delegation          self | recommend | approve | autonomous
-    d6_rec_action          accept | reconsider | take_control (empty if not reached)
-    d6_reconsider_action   review | allow | take_over (empty if not reached)
-    d6_final_laptop        name of the laptop selected, e.g. Atlas 14
-    d6_final_valid         1 if it meets all five requirements, otherwise 0
-    d6_selected_by         chatbot | self
+    d6_p1_action1          response to Granite 14 (empty for self)
+    d6_p1_action2          response to Atlas 14 after reconsidering (else empty)
+    d6_p1_final_laptop     laptop selected in Part 1, e.g. Atlas 14
+    d6_p1_final_valid      1 if it meets all five requirements, otherwise 0
+    d6_p1_final_source     agent | own
+    d6_p1_accepted_flaw    delegators: 1 if they went along with Granite 14, else 0
+    d6_p1_responsibility   delegators: 1 (Entirely me) to 7 (Entirely the agent)
+    d6_p2_initial          initial monitor choice
+    d6_p2_initial_conf     confidence in the initial choice, 1 to 7
+    d6_p2_rec              monitor the agent recommended
+    d6_p2_final            final monitor choice
+    d6_p2_final_conf       confidence in the final choice, 1 to 7
+    d6_p2_switched         1 if the final choice is the agent's recommendation
     d6_panels              JSON: information panels opened on each screen
-    d6_outputs             JSON: chatbot outputs shown and their source
+    d6_outputs             JSON: agent outputs shown and their source
     d6_events              JSON: timestamped log of every screen, panel and choice
-    d6_complete            1 once a laptop has been selected, otherwise 0
+    d6_complete            1 once both parts are finished, otherwise 0
+
+The README lists every code these fields can take.
 
 
 STEP 2: Add the iframe to the question
@@ -31,7 +41,7 @@ paste:
 <iframe
   src="https://YOUR-APP.vercel.app/"
   title="AI Delegation Task"
-  style="width:100%; height:900px; border:1px solid #dfd1bd; border-radius:12px;"
+  style="width:100%; height:900px; border:1px solid #dce1e8; border-radius:12px;"
   allow="clipboard-write">
 </iframe>
 
@@ -46,7 +56,7 @@ and replace its contents with:
 Qualtrics.SurveyEngine.addOnReady(function () {
   var question = this;
 
-  // Participants cannot move on until a laptop has been selected.
+  // Participants cannot move on until both parts are finished.
   question.hideNextButton();
 
   window.addEventListener('message', function (event) {
@@ -59,11 +69,19 @@ Qualtrics.SurveyEngine.addOnReady(function () {
       Qualtrics.SurveyEngine.setEmbeddedData(name, value);
     }
     set('d6_delegation', d.delegation);
-    set('d6_rec_action', d.recAction);
-    set('d6_reconsider_action', d.reconsiderAction);
-    set('d6_final_laptop', d.finalLaptop);
-    set('d6_final_valid', d.finalValid);
-    set('d6_selected_by', d.selectedBy);
+    set('d6_p1_action1', d.p1Action1);
+    set('d6_p1_action2', d.p1Action2);
+    set('d6_p1_final_laptop', d.p1FinalLaptop);
+    set('d6_p1_final_valid', d.p1FinalValid);
+    set('d6_p1_final_source', d.p1FinalSource);
+    set('d6_p1_accepted_flaw', d.p1AcceptedFlaw);
+    set('d6_p1_responsibility', d.p1Responsibility);
+    set('d6_p2_initial', d.p2Initial);
+    set('d6_p2_initial_conf', d.p2InitialConf);
+    set('d6_p2_rec', d.p2Rec);
+    set('d6_p2_final', d.p2Final);
+    set('d6_p2_final_conf', d.p2FinalConf);
+    set('d6_p2_switched', d.p2Switched);
     set('d6_panels', JSON.stringify(d.panels));
     set('d6_outputs', JSON.stringify(d.outputs));
     set('d6_events', JSON.stringify(d.events));

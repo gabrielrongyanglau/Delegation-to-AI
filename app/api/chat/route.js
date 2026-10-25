@@ -3,6 +3,8 @@ import path from "node:path";
 import OpenAI from "openai";
 import {
   LAPTOPS,
+  MONITORS,
+  MONITOR_ATTRIBUTES,
   OUTPUTS,
   REQUIREMENTS,
   fmtWeight,
@@ -20,8 +22,7 @@ function getClient() {
 }
 
 // ─── Settings (environment variables) ────────────────────────────────────────
-// OPENAI_MODEL        Model id. Appendix D names GPT-5.6; set the exact id your
-//                     OpenAI account exposes.
+// OPENAI_MODEL        Model id, exactly as your OpenAI account lists it.
 // OPENAI_TEMPERATURE  Only sent when set. Several reasoning models reject it.
 // OPENAI_SEED         Only sent when set.
 // OUTPUT_MODE         verified (default) | model | fixed
@@ -40,7 +41,14 @@ const OUTPUT_MODE = ["verified", "model", "fixed"].includes(process.env.OUTPUT_M
   : "verified";
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STEPS = { recommend: "RECOMMEND", reconsider: "RECONSIDER" };
+// Each step the page can request: the task briefing it needs, then the
+// instruction for this reply.
+const STEPS = {
+  recommend: ["LAPTOP_TASK", "RECOMMEND"],
+  reconsider: ["LAPTOP_TASK", "RECONSIDER"],
+  monitor_a: ["MONITOR_TASK", "MONITOR_ADVICE"],
+  monitor_b: ["MONITOR_TASK", "MONITOR_ADVICE"],
+};
 
 const SECTIONS = (() => {
   const raw = fs.readFileSync(path.join(process.cwd(), "CHATBOT_PROMPT.txt"), "utf8");
@@ -51,7 +59,7 @@ const SECTIONS = (() => {
   const sections = {};
   const parts = text.split(/^===\s*([A-Z0-9_]+)\s*===\s*$/m);
   for (let i = 1; i < parts.length; i += 2) sections[parts[i]] = parts[i + 1].trim();
-  for (const name of ["BASE", ...Object.values(STEPS)]) {
+  for (const name of ["STYLE", ...new Set(Object.values(STEPS).flat())]) {
     if (!sections[name]) throw new Error(`CHATBOT_PROMPT.txt is missing the ${name} section`);
   }
   return sections;
@@ -59,6 +67,9 @@ const SECTIONS = (() => {
 
 const describeLaptop = (l) =>
   `- ${l.name}: £${l.price}, ${l.os}, ${l.memoryGb} GB memory, ${l.storage} storage, ${l.batteryH} h battery, ${fmtWeight(l.weightKg)}, HDMI port: ${l.hdmi ? "Yes" : "No"}`;
+
+const describeMonitor = (m) =>
+  `- ${m.name}: ` + MONITOR_ATTRIBUTES.map(({ key, label }) => `${label.toLowerCase()}: ${m[key]}`).join("; ");
 
 function fill(template, values) {
   return template.replace(/\{([A-Z_]+)\}/g, (match, key) => (key in values ? String(values[key]) : match));
@@ -98,11 +109,13 @@ export async function POST(req) {
     return Response.json({ reply: expected, source: "fixed", model: null }, { headers: CORS });
   }
 
-  const system = [SECTIONS.BASE, SECTIONS[STEPS[step]]]
+  const [taskSection, stepSection] = STEPS[step];
+  const system = [SECTIONS[taskSection], SECTIONS.STYLE, SECTIONS[stepSection]]
     .map((s) =>
       fill(s, {
         REQUIREMENTS: REQUIREMENTS.map((r) => `- ${r}`).join("\n"),
         LAPTOPS: LAPTOPS.map(describeLaptop).join("\n"),
+        MONITORS: Object.values(MONITORS).map(describeMonitor).join("\n"),
         EXPECTED: expected,
       }),
     )
@@ -122,13 +135,13 @@ export async function POST(req) {
     generated = completion.choices[0]?.message?.content?.trim() ?? "";
   } catch (err) {
     console.error("chat route: model call failed:", err);
-    if (OUTPUT_MODE === "model") return fail(502, "The chatbot is unavailable right now.");
+    if (OUTPUT_MODE === "model") return fail(502, "The Decision Agent is unavailable right now.");
     return Response.json({ reply: expected, source: "fallback_error", model: MODEL }, { headers: CORS });
   }
 
   const matches = normalise(generated) === normalise(expected);
   if (OUTPUT_MODE === "model") {
-    if (!generated) return fail(502, "The chatbot returned an empty reply.");
+    if (!generated) return fail(502, "The Decision Agent returned an empty reply.");
     return Response.json(
       { reply: generated, source: matches ? "model" : "model_unmatched", model: MODEL },
       { headers: CORS },

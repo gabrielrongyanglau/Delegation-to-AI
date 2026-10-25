@@ -641,3 +641,124 @@ textarea::placeholder {
     width: 100%;
   }
 }
+
+/* ── Part label ─────────────────────────────────────────────────────────── */
+
+.part {
+  margin: 0 0 6px;
+  color: var(--slate);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* ── Monitor comparison ─────────────────────────────────────────────────── */
+
+.monitors {
+  min-width: 0;
+  table-layout: fixed;
+}
+
+.monitors th,
+.monitors td {
+  white-space: normal;
+  vertical-align: top;
+}
+
+.monitors thead th:first-child,
+.monitors tbody th {
+  width: 22%;
+}
+
+.monitors thead th {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ── 1 to 7 rating ──────────────────────────────────────────────────────── */
+
+.scale {
+  margin: 0 0 22px;
+  padding: 0;
+  border: 0;
+}
+
+.scale legend {
+  margin-bottom: 10px;
+  padding: 0;
+  font-weight: 600;
+}
+
+.scale-points {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.scale-point {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.scale-point + .scale-point {
+  border-left: 1px solid var(--rule);
+}
+
+.scale-point input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.scale-point:hover {
+  background: #f8f9fb;
+}
+
+.scale-point.selected {
+  color: #fff;
+  background: var(--signal);
+}
+
+.scale-point:focus-within {
+  outline: 2px solid var(--signal);
+  outline-offset: -2px;
+}
+
+.scale-anchors {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 12px;
+  margin-top: 6px;
+  color: var(--slate);
+  font-size: 13px;
+}
+
+.scale-anchors span:last-child {
+  grid-column: 3;
+  text-align: right;
+}
+
+.scale-mid {
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  .monitors th,
+  .monitors td {
+    padding: 8px 9px;
+    font-size: 13px;
+  }
+
+  .monitors thead th:first-child,
+  .monitors tbody th {
+    width: 26%;
+  }
+}
