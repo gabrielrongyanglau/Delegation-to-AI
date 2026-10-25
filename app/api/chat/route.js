@@ -6,8 +6,6 @@ import {
   OUTPUTS,
   REQUIREMENTS,
   fmtWeight,
-  laptopById,
-  summaryFor,
 } from "../../../lib/study";
 
 // fs isn't available on the edge runtime, and the prompt is read from disk.
@@ -42,7 +40,7 @@ const OUTPUT_MODE = ["verified", "model", "fixed"].includes(process.env.OUTPUT_M
   : "verified";
 // ─────────────────────────────────────────────────────────────────────────────
 
-const STEPS = { recommend: "RECOMMEND", reconsider: "RECONSIDER", summary: "SUMMARY" };
+const STEPS = { recommend: "RECOMMEND", reconsider: "RECONSIDER" };
 
 const SECTIONS = (() => {
   const raw = fs.readFileSync(path.join(process.cwd(), "CHATBOT_PROMPT.txt"), "utf8");
@@ -94,13 +92,7 @@ export async function POST(req) {
   const step = body?.step;
   if (!(step in STEPS)) return fail(400, "Unknown step.");
 
-  let expected;
-  if (step === "summary") {
-    if (!laptopById(body.laptop)) return fail(400, "Unknown laptop.");
-    expected = summaryFor(body.laptop);
-  } else {
-    expected = OUTPUTS[step];
-  }
+  const expected = OUTPUTS[step];
 
   if (OUTPUT_MODE === "fixed") {
     return Response.json({ reply: expected, source: "fixed", model: null }, { headers: CORS });

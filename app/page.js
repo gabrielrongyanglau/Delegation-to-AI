@@ -7,7 +7,6 @@ import {
   DELEGATION_CHOICES,
   INTRO,
   LAPTOPS,
-  MIN_SUMMARY_CHARS,
   PROGRESS_PANELS,
   RECOMMENDATION_CHOICES,
   RECOMMENDATION_PANELS,
@@ -15,7 +14,6 @@ import {
   RECOMMENDED_REVISED,
   RECONSIDER_CHOICES,
   REQUIREMENTS,
-  SUMMARY_CHOICES,
   TASK_LEAD,
   TASK_TITLE,
   fmtWeight,
@@ -187,10 +185,6 @@ const STATUS = {
   reconsidered: { text: "Revised recommendation ready", tone: "ready" },
   review_revised: { text: "Waiting for your review", tone: "idle" },
   choose: { text: "Waiting for your choice", tone: "idle" },
-  summary_choice: { text: "Waiting for your choice", tone: "idle" },
-  summary_write: { text: "Waiting for your summary", tone: "idle" },
-  summary_review: { text: "Summary ready for review", tone: "ready" },
-  summary_auto: { text: "Summary saved", tone: "done" },
   done: { text: "Task complete", tone: "done" },
 };
 
@@ -215,9 +209,6 @@ export default function Task() {
     reconsider_action: "",
     final_laptop: "",
     selected_by: "", // self | chatbot
-    summary_choice: "",
-    summary_text: "",
-    summary_edited: "",
     panels: {}, // screen -> [panel codes, in order first opened]
     outputs: [], // chatbot replies actually shown, with their source
     events: [],
@@ -226,7 +217,6 @@ export default function Task() {
   const [outputs, setOutputs] = useState({}); // step -> {reply, source}
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [draft, setDraft] = useState("");
 
   const startRef = useRef(null);
   const topRef = useRef(null);
@@ -270,15 +260,15 @@ export default function Task() {
   // Fetch a chatbot reply. Requests are de-duplicated, so prefetching on one
   // screen and asking again on the next costs a single call.
   const fetchOutput = useCallback(
-    async (step, laptop) => {
-      const key = step === "summary" ? `summary:${laptop}` : step;
+    async (step) => {
+      const key = step;
       if (outputs[key]) return outputs[key];
       if (!inflight.current[key]) {
         inflight.current[key] = (async () => {
           const res = await fetch("/api/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ step, laptop }),
+            body: JSON.stringify({ step }),
           });
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           const json = await res.json();
@@ -307,11 +297,11 @@ export default function Task() {
 
   // Ask for a reply and show a retry message if it fails.
   const load = useCallback(
-    async (step, laptop) => {
+    async (step) => {
       setLoading(true);
       setError(null);
       try {
-        return await fetchOutput(step, laptop);
+        return await fetchOutput(step);
       } catch (err) {
         console.error(err);
         setError("Something went wrong reaching the Decision Agent. Please try again.");
@@ -337,9 +327,6 @@ export default function Task() {
         finalLaptop: final ? final.name : "",
         finalValid: final ? (meetsRequirements(final) ? 1 : 0) : "",
         selectedBy: data.selected_by,
-        summaryChoice: data.summary_choice,
-        summaryText: data.summary_text,
-        summaryEdited: data.summary_edited,
         panels: data.panels,
         outputs: data.outputs,
         events: data.events,
@@ -349,15 +336,10 @@ export default function Task() {
     );
   }, [data]);
 
+  // Selecting a laptop, by the participant or the Decision Agent, ends the task.
   const select = (laptop, by) => {
     log("select", `${laptop}:${by}`);
-    setData((d) => ({ ...d, final_laptop: laptop, selected_by: by }));
-    go("summary_choice");
-  };
-
-  const finish = (text, edited = "") => {
-    log("summary_saved");
-    setData((d) => ({ ...d, summary_text: text, summary_edited: edited, complete: true }));
+    setData((d) => ({ ...d, final_laptop: laptop, selected_by: by, complete: true }));
     go("done");
   };
 
@@ -397,35 +379,13 @@ export default function Task() {
 
   const submitChoose = () => select(choice, "self");
 
-  const submitSummaryChoice = async () => {
-    log("choice", `summary:${choice}`);
-    const picked = choice;
-    setData((d) => ({ ...d, summary_choice: picked }));
-    if (picked === "self") {
-      setDraft("");
-      return go("summary_write");
-    }
-    go(picked === "chatbot" ? "summary_auto" : "summary_review");
-    const out = await load("summary", data.final_laptop);
-    if (!out) return;
-    if (picked === "chatbot") {
-      // Saved without review: the task is complete as soon as it is shown.
-      setData((d) => ({ ...d, summary_text: out.reply, complete: true }));
-      log("summary_saved");
-    } else {
-      setDraft(out.reply);
-    }
-  };
-
   const retry = () => {
     if (screen === "recommendation") load("recommend");
     else if (screen === "reconsidered") load("reconsider");
-    else load("summary", data.final_laptop);
   };
 
   const recOut = outputs.recommend;
   const revOut = outputs.reconsider;
-  const sumOut = outputs[`summary:${data.final_laptop}`];
   const autonomousSkip = AUTONOMOUS_SKIPS_REVIEW && data.delegation === "autonomous";
   const errorBox = error && (
     <div className="error" role="alert">
@@ -574,100 +534,11 @@ export default function Task() {
           </section>
         )}
 
-        {screen === "summary_choice" && (
-          <section>
-            <h2>Complete the Purchase Summary</h2>
-            <p>
-              The laptop selection has been recorded. Choose who will prepare the short purchase
-              summary for your records.
-            </p>
-            <ChoiceGroup
-              name="summary"
-              legend="Select one option."
-              choices={SUMMARY_CHOICES}
-              value={choice}
-              onChange={setChoice}
-            />
-            <ContinueButton disabled={!choice} onClick={submitSummaryChoice} />
-          </section>
-        )}
-
-        {screen === "summary_write" && (
-          <section>
-            <h2>Prepare the Purchase Summary</h2>
-            <p>
-              Write a short purchase summary for your records. The selected laptop is{" "}
-              {laptopById(data.final_laptop)?.name}, highlighted in the table below.
-            </p>
-            <LaptopTable highlight={data.final_laptop} />
-            <label className="field">
-              <span className="visually-hidden">Purchase summary</span>
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                rows={5}
-                maxLength={1500}
-                placeholder="Type your purchase summary..."
-              />
-            </label>
-            <ContinueButton
-              disabled={draft.trim().length < MIN_SUMMARY_CHARS}
-              onClick={() => finish(draft.trim())}
-            >
-              Save summary
-            </ContinueButton>
-          </section>
-        )}
-
-        {screen === "summary_review" && (
-          <section>
-            <h2>Review the Purchase Summary</h2>
-            <ChatbotMessage thinking={loading || !sumOut}>{sumOut?.reply}</ChatbotMessage>
-            {errorBox}
-            {sumOut && (
-              <>
-                <p>Review the summary below. You may edit it before saving.</p>
-                <label className="field">
-                  <span className="visually-hidden">Purchase summary</span>
-                  <textarea
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    rows={5}
-                    maxLength={1500}
-                  />
-                </label>
-                <ContinueButton
-                  disabled={!draft.trim()}
-                  onClick={() =>
-                    finish(draft.trim(), draft.trim() === sumOut.reply.trim() ? 0 : 1)
-                  }
-                >
-                  Save summary
-                </ContinueButton>
-              </>
-            )}
-          </section>
-        )}
-
-        {screen === "summary_auto" && (
-          <section>
-            <h2>Purchase Summary</h2>
-            <ChatbotMessage thinking={loading || !sumOut}>{sumOut?.reply}</ChatbotMessage>
-            {errorBox}
-            {sumOut && (
-              <div className="done-note" role="status">
-                <strong>The purchase summary has been saved and the task is complete.</strong> Please
-                continue with the survey.
-              </div>
-            )}
-          </section>
-        )}
-
         {screen === "done" && (
           <section>
             <div className="done-note" role="status">
-              <strong>The purchase summary has been saved and the task is complete.</strong> Please
-              continue with the survey.
+              <strong>Your laptop selection has been recorded and the task is complete.</strong>{" "}
+              Please continue with the survey.
             </div>
           </section>
         )}

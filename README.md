@@ -33,13 +33,14 @@ true total is £920.
 | --- | --- | --- |
 | 1. Task and delegation | Reads the task, requirements and table; chooses one of four delegation levels | `self` → 5; otherwise → 2 |
 | 2. Chatbot working | May open three information panels (progress, laptop table, requirements) | 3 |
-| 3. Recommendation | Sees "Choose Granite 14..."; may open three panels (reasoning, selected laptop, requirements); accepts, asks to reconsider, or takes control | accept → 6 (Granite 14); reconsider → 4; take control → 5 |
-| 4. Reconsidered | Sees the Atlas 14 recommendation; reviews it first, lets the Decision Agent confirm it, or takes control | review → 4a → 6; allow → 6 (Atlas 14); take over → 5 |
-| 4a. Review Atlas 14 | Sees Atlas 14's details; confirms | 6 |
-| 5. Choose yourself | Picks any of the seven laptops | 6 |
-| 6. Purchase summary | Chooses who prepares it: self (writes it), chatbot (saved automatically), or chatbot with review (may edit, then saves) | End |
+| 3. Recommendation | Sees "Choose Granite 14..."; may open three panels (reasoning, recommended laptop, requirements); accepts, asks to reconsider, or takes control | accept → end (Granite 14); reconsider → 4; take control → 5 |
+| 4. Reconsidered | Sees the Atlas 14 recommendation; reviews it first, lets the Decision Agent confirm it, or takes control | review → 4a; allow → end (Atlas 14); take control → 5 |
+| 4a. Review Atlas 14 | Sees Atlas 14's details; confirms | End (Atlas 14) |
+| 5. Choose yourself | Picks any of the seven laptops | End |
 
 There is no back button; each choice is final, as in the Appendix D flow.
+The task ends as soon as a laptop is selected. The purchase-summary stage in
+Appendix D has been removed.
 
 `AUTONOMOUS_SKIPS_REVIEW` in `lib/study.js` is `false`, so participants who
 choose full delegation still see screen 3, as Appendix D shows. Set it to
@@ -48,8 +49,8 @@ choose full delegation still see screen 3, as Appendix D shows. Set it to
 ## Chatbot outputs
 
 Appendix D requires every participant to see identical chatbot text, so the
-three outputs (recommendation, reconsidered recommendation, purchase summary
-for the selected laptop) are fixed strings in `lib/study.js`. The server asks
+two outputs (the recommendation and the reconsidered recommendation) are fixed
+strings in `lib/study.js`. The server asks
 the model for them under a fixed prompt (`CHATBOT_PROMPT.txt`) and compares
 its reply with the fixed string. `OUTPUT_MODE` sets what happens next:
 
@@ -67,7 +68,7 @@ model reproduces all three outputs before launch.
 
 | File | Role |
 | --- | --- |
-| `lib/study.js` | All task content: intro, requirements, laptops, choice wording, panel text, chatbot outputs, summary template |
+| `lib/study.js` | All task content: intro, requirements, laptops, choice wording, panel text, chatbot outputs |
 | `CHATBOT_PROMPT.txt` | The model's instructions: a `BASE` section plus one section per step. `#` lines are researcher notes and are stripped |
 | `app/api/chat/route.js` | Validates the request, builds the prompt, calls OpenAI, checks the reply |
 | `app/page.js` | The task screens, information panels, event log and relay to Qualtrics |
@@ -84,13 +85,10 @@ model reproduces all three outputs before launch.
 | `d6_final_laptop` | Name of the laptop selected |
 | `d6_final_valid` | 1 if it meets all five requirements, otherwise 0 |
 | `d6_selected_by` | `chatbot` or `self` |
-| `d6_summary_choice` | `self`, `chatbot`, or `chatbot_review` |
-| `d6_summary_text` | The saved summary |
-| `d6_summary_edited` | For `chatbot_review`: 1 if edited before saving, otherwise 0 |
 | `d6_panels` | JSON: panels opened on each screen, in order of first opening |
 | `d6_outputs` | JSON: chatbot outputs shown and their source |
 | `d6_events` | JSON: timestamped log (ms from load) of every screen, panel and choice |
-| `d6_complete` | 1 once the summary is saved |
+| `d6_complete` | 1 once a laptop has been selected |
 
 ## Local development
 
@@ -133,5 +131,3 @@ so it ships with the serverless function, and sets
   though each request is a single short completion.
 - The data comes from the browser, so a technically skilled participant could
   alter what is posted to Qualtrics.
-- The purchase summary text is not in Appendix D; check its wording
-  (`summaryFor` in `lib/study.js`) with the team.

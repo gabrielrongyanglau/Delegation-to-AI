@@ -16,13 +16,10 @@ empty values, ABOVE the block containing the task question:
     d6_final_laptop        name of the laptop selected, e.g. Atlas 14
     d6_final_valid         1 if it meets all five requirements, otherwise 0
     d6_selected_by         chatbot | self
-    d6_summary_choice      self | chatbot | chatbot_review
-    d6_summary_text        the saved purchase summary
-    d6_summary_edited      1 if a chatbot summary was edited before saving, else 0
     d6_panels              JSON: information panels opened on each screen
     d6_outputs             JSON: chatbot outputs shown and their source
     d6_events              JSON: timestamped log of every screen, panel and choice
-    d6_complete            1 once the summary is saved, otherwise 0
+    d6_complete            1 once a laptop has been selected, otherwise 0
 
 
 STEP 2: Add the iframe to the question
@@ -49,7 +46,7 @@ and replace its contents with:
 Qualtrics.SurveyEngine.addOnReady(function () {
   var question = this;
 
-  // Participants cannot move on until the purchase summary has been saved.
+  // Participants cannot move on until a laptop has been selected.
   question.hideNextButton();
 
   window.addEventListener('message', function (event) {
@@ -58,16 +55,15 @@ Qualtrics.SurveyEngine.addOnReady(function () {
     var d = event.data;
     if (!d || d.type !== 'ai-delegation-task') return;
 
-    var set = Qualtrics.SurveyEngine.setEmbeddedData;
+    function set(name, value) {
+      Qualtrics.SurveyEngine.setEmbeddedData(name, value);
+    }
     set('d6_delegation', d.delegation);
     set('d6_rec_action', d.recAction);
     set('d6_reconsider_action', d.reconsiderAction);
     set('d6_final_laptop', d.finalLaptop);
     set('d6_final_valid', d.finalValid);
     set('d6_selected_by', d.selectedBy);
-    set('d6_summary_choice', d.summaryChoice);
-    set('d6_summary_text', d.summaryText);
-    set('d6_summary_edited', d.summaryEdited);
     set('d6_panels', JSON.stringify(d.panels));
     set('d6_outputs', JSON.stringify(d.outputs));
     set('d6_events', JSON.stringify(d.events));

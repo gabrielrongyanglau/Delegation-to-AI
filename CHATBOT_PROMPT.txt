@@ -7,7 +7,6 @@
 #     chosen by the server from the screen the participant is on:
 #         recommendation screen      -> RECOMMEND
 #         "reconsider" was chosen    -> RECONSIDER
-#         chatbot prepares summary   -> SUMMARY
 #   - Placeholders in {CURLY_BRACES} are filled in by the server from
 #     lib/study.js:
 #         {REQUIREMENTS}  the five requirements, as shown to participants
@@ -39,8 +38,4 @@ Give your recommendation. Reply with exactly the following text and nothing else
 
 === RECONSIDER ===
 The user has asked you to reconsider your previous recommendation of Granite 14. Reply with exactly the following text and nothing else:
-{EXPECTED}
-
-=== SUMMARY ===
-The user's laptop selection has been recorded. Prepare a short purchase summary for their records. Reply with exactly the following text and nothing else:
 {EXPECTED}
