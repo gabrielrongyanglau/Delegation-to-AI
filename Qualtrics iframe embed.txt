@@ -1,0 +1,95 @@
+EMBEDDING THE STUDY 6 AI DELEGATION TASK IN QUALTRICS VIA <IFRAME>
+==================================================================
+
+Replace https://YOUR-APP.vercel.app below with your actual Vercel URL (in both
+places: the iframe src and the origin check in the JavaScript).
+
+
+STEP 1: Create the embedded data fields
+---------------------------------------
+Survey Flow -> Add a New Element -> Embedded Data -> add these fields, with
+empty values, ABOVE the block containing the task question:
+
+    d6_delegation          self | recommend | approve | autonomous
+    d6_rec_action          accept | reconsider | take_control (empty if not reached)
+    d6_reconsider_action   review | allow | take_over (empty if not reached)
+    d6_final_laptop        name of the laptop selected, e.g. Atlas 14
+    d6_final_valid         1 if it meets all five requirements, otherwise 0
+    d6_selected_by         chatbot | self
+    d6_summary_choice      self | chatbot | chatbot_review
+    d6_summary_text        the saved purchase summary
+    d6_summary_edited      1 if a chatbot summary was edited before saving, else 0
+    d6_panels              JSON: information panels opened on each screen
+    d6_outputs             JSON: chatbot outputs shown and their source
+    d6_events              JSON: timestamped log of every screen, panel and choice
+    d6_complete            1 once the summary is saved, otherwise 0
+
+
+STEP 2: Add the iframe to the question
+--------------------------------------
+Create a Text/Graphic question in the Study 6 block, after the AI Delegation
+Scale. Open the rich-text editor, switch to HTML view (the "<>" button), and
+paste:
+
+<iframe
+  src="https://YOUR-APP.vercel.app/"
+  title="AI Delegation Task"
+  style="width:100%; height:900px; border:1px solid #dfd1bd; border-radius:12px;"
+  allow="clipboard-write">
+</iframe>
+
+The task scrolls inside the frame, so a shorter height still works.
+
+
+STEP 3: Add the receiver and lock the Next button
+-------------------------------------------------
+On the SAME question, open the JavaScript editor (gear icon -> Add JavaScript)
+and replace its contents with:
+
+Qualtrics.SurveyEngine.addOnReady(function () {
+  var question = this;
+
+  // Participants cannot move on until the purchase summary has been saved.
+  question.hideNextButton();
+
+  window.addEventListener('message', function (event) {
+    // Only accept messages from the deployment, never from any other frame.
+    if (event.origin !== 'https://YOUR-APP.vercel.app') return;
+    var d = event.data;
+    if (!d || d.type !== 'ai-delegation-task') return;
+
+    var set = Qualtrics.SurveyEngine.setEmbeddedData;
+    set('d6_delegation', d.delegation);
+    set('d6_rec_action', d.recAction);
+    set('d6_reconsider_action', d.reconsiderAction);
+    set('d6_final_laptop', d.finalLaptop);
+    set('d6_final_valid', d.finalValid);
+    set('d6_selected_by', d.selectedBy);
+    set('d6_summary_choice', d.summaryChoice);
+    set('d6_summary_text', d.summaryText);
+    set('d6_summary_edited', d.summaryEdited);
+    set('d6_panels', JSON.stringify(d.panels));
+    set('d6_outputs', JSON.stringify(d.outputs));
+    set('d6_events', JSON.stringify(d.events));
+    set('d6_complete', d.complete ? 1 : 0);
+
+    if (d.complete) question.showNextButton();
+  });
+});
+
+
+HOW THE DATA CAPTURE WORKS
+--------------------------
+An iframe cannot write Qualtrics embedded data directly: it is a separate
+document on a different origin. The task page calls window.parent.postMessage()
+after every action, and the receiver above writes the fields. The origin check
+stops any other embedded content on the page from spoofing the data.
+
+
+IF THE IFRAME RENDERS BLANK
+---------------------------
+Open the browser console. A message mentioning "frame-ancestors" means the
+Content-Security-Policy in next.config.mjs does not list the domain your
+survey is served from. The current policy allows https://*.qualtrics.com,
+which covers most institutions; add your specific domain there if yours
+differs.
