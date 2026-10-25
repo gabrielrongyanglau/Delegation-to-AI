@@ -17,10 +17,11 @@ empty values, ABOVE the block containing the task question:
     d6_final_valid         1 if it meets all five requirements, otherwise 0
     d6_final_source        agent | own
     d6_accepted_flaw       delegators: 1 if they went along with Granite 14, else 0
-    d6_responsibility      delegators: 1 (Entirely me) to 7 (Entirely the agent)
+    d6_responsibility      everyone: 1 (Entirely me) to 7 (Entirely the agent)
     d6_panels              JSON: information panels opened on each screen
     d6_outputs             JSON: agent outputs shown and their source
     d6_events              JSON: timestamped log of every screen, panel and choice
+    d6_reloads             times the task was reloaded mid-task and resumed (0 normally)
     d6_complete            1 once the task is finished, otherwise 0
 
 The README lists every code these fields can take.
@@ -33,13 +34,19 @@ Scale. Open the rich-text editor, switch to HTML view (the "<>" button), and
 paste:
 
 <iframe
-  src="https://YOUR-APP.vercel.app/"
+  src="https://YOUR-APP.vercel.app/?rid=${e://Field/ResponseID}"
   title="AI Delegation Task"
   style="width:100%; height:900px; border:1px solid #dce1e8; border-radius:12px;"
   allow="clipboard-write">
 </iframe>
 
 The task scrolls inside the frame, so a shorter height still works.
+
+Keep ?rid=${e://Field/ResponseID} in the src. Qualtrics replaces it with the
+response ID, which lets the task save each participant's progress separately.
+If the page is refreshed or the survey reopened, the participant resumes where
+they left off instead of starting again, and d6_reloads counts how often that
+happened. Without ?rid, progress only survives a refresh in the same tab.
 
 
 STEP 3: Add the receiver and lock the Next button
@@ -70,6 +77,7 @@ Qualtrics.SurveyEngine.addOnReady(function () {
     set('d6_final_source', d.finalSource);
     set('d6_accepted_flaw', d.acceptedFlaw);
     set('d6_responsibility', d.responsibility);
+    set('d6_reloads', d.reloads);
     set('d6_panels', JSON.stringify(d.panels));
     set('d6_outputs', JSON.stringify(d.outputs));
     set('d6_events', JSON.stringify(d.events));

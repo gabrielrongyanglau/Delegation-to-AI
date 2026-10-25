@@ -27,6 +27,45 @@ const THINKING_DELAY_MS = 1500;
 
 const POST_TYPE = "ai-delegation-task";
 
+// ─── Progress that survives a reload ─────────────────────────────────────────
+// A reload (refresh, a dropped frame, reopening the survey) must not restart the
+// task, or a participant could see the flawed output twice and only their last
+// attempt would reach Qualtrics. Progress is saved after every change and
+// restored on load. Qualtrics passes its response ID as ?rid=, so each response
+// has its own saved progress; without it (opened directly), progress lasts for
+// the browser tab only.
+const STORE_VERSION = 1;
+
+function storeFor(rid) {
+  try {
+    const store = rid ? window.localStorage : window.sessionStorage;
+    const key = `d6-task:v${STORE_VERSION}:${rid || "tab"}`;
+    store.getItem(key); // throws where storage is blocked
+    return { store, key };
+  } catch {
+    return null;
+  }
+}
+
+function readSaved(target) {
+  if (!target) return null;
+  try {
+    const saved = JSON.parse(target.store.getItem(target.key) || "null");
+    return saved && saved.version === STORE_VERSION ? saved : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeSaved(target, value) {
+  if (!target) return;
+  try {
+    target.store.setItem(target.key, JSON.stringify({ version: STORE_VERSION, ...value }));
+  } catch {
+    // Storage full or blocked: the task still works, it just cannot resume.
+  }
+}
+
 // ─── Shared pieces ───────────────────────────────────────────────────────────
 
 // The five requirements as a checklist: label on the left, rule on the right.
@@ -60,38 +99,62 @@ function TaskBrief({ goal, lead, children }) {
   );
 }
 
+// The same seven laptops and eight specifications in two forms: a table on
+// wider screens and one card per laptop on phones, so every specification
+// (HDMI port included) is visible without sideways scrolling on any device.
+const SPECS = [
+  { label: "Price", value: (l) => `£${l.price}` },
+  { label: "Operating system", value: (l) => l.os },
+  { label: "Memory", value: (l) => `${l.memoryGb} GB` },
+  { label: "Storage", value: (l) => l.storage },
+  { label: "Battery", value: (l) => `${l.batteryH} h` },
+  { label: "Weight", value: (l) => fmtWeight(l.weightKg) },
+  { label: "HDMI port", value: (l) => (l.hdmi ? "Yes" : "No") },
+];
+
 function LaptopTable() {
   return (
-    <div className="table-scroll">
-      <table className="laptops">
-        <thead>
-          <tr>
-            <th scope="col">Model</th>
-            <th scope="col">Price</th>
-            <th scope="col">Operating system</th>
-            <th scope="col">Memory</th>
-            <th scope="col">Storage</th>
-            <th scope="col">Battery</th>
-            <th scope="col">Weight</th>
-            <th scope="col">HDMI port</th>
-          </tr>
-        </thead>
-        <tbody>
-          {LAPTOPS.map((l) => (
-            <tr key={l.id}>
-              <th scope="row">{l.name}</th>
-              <td>£{l.price}</td>
-              <td>{l.os}</td>
-              <td>{l.memoryGb} GB</td>
-              <td>{l.storage}</td>
-              <td>{l.batteryH} h</td>
-              <td>{fmtWeight(l.weightKg)}</td>
-              <td>{l.hdmi ? "Yes" : "No"}</td>
+    <>
+      <div className="table-scroll laptop-table">
+        <table className="laptops">
+          <thead>
+            <tr>
+              <th scope="col">Model</th>
+              {SPECS.map((s) => (
+                <th key={s.label} scope="col">
+                  {s.label}
+                </th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {LAPTOPS.map((l) => (
+              <tr key={l.id}>
+                <th scope="row">{l.name}</th>
+                {SPECS.map((s) => (
+                  <td key={s.label}>{s.value(l)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <ul className="laptop-cards" aria-label="The seven laptops">
+        {LAPTOPS.map((l) => (
+          <li key={l.id} className="laptop-card">
+            <h4>{l.name}</h4>
+            <dl>
+              {SPECS.map((s) => (
+                <div key={s.label}>
+                  <dt>{s.label}</dt>
+                  <dd>{s.value(l)}</dd>
+                </div>
+              ))}
+            </dl>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -241,10 +304,12 @@ const INITIAL_DATA = {
   action2: "", // response to the revised output, if they asked it to reconsider
   final_laptop: "",
   final_source: "", // agent (went along with the agent) | own (chose from the list)
-  responsibility: "", // 1-7, delegators only
+  responsibility: "", // 1-7, asked of every participant
   panels: {}, // screen -> [panel codes, in order first opened]
   outputs: [], // agent replies actually shown, with their source
   events: [],
+  reloads: 0, // times the page was reloaded and progress restored
+  started: 0, // ms since epoch at first load, so event times run on across reloads
   complete: false,
 };
 
@@ -259,21 +324,45 @@ export default function Task() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const startRef = useRef(null);
   const topRef = useRef(null);
   const inflight = useRef({});
+  const storeRef = useRef(null);
 
-  // Set once the page is interactive; a choice clicked before hydration would
-  // otherwise be silently cleared.
+  // Set once the page is interactive and any saved progress is restored; a
+  // choice clicked before then would otherwise be silently cleared.
   const [ready, setReady] = useState(false);
   useEffect(() => {
-    startRef.current = performance.now();
+    const rid = new URLSearchParams(window.location.search).get("rid") || "";
+    storeRef.current = storeFor(rid);
+    const saved = readSaved(storeRef.current);
+    if (saved) {
+      const t = Math.round(Date.now() - (saved.data.started || Date.now()));
+      setScreen(saved.screen);
+      setOutputs(saved.outputs || {});
+      setData({
+        ...INITIAL_DATA,
+        ...saved.data,
+        // Only a reload before the task is finished counts; reopening a
+        // finished task changes nothing.
+        reloads: (saved.data.reloads || 0) + (saved.data.complete ? 0 : 1),
+        events: [...(saved.data.events || []), { t, action: "restored", detail: saved.screen }],
+      });
+    } else {
+      setData((d) => ({ ...d, started: Date.now() }));
+    }
     setReady(true);
   }, []);
 
+  // Save progress after every change, once restored.
+  useEffect(() => {
+    if (ready) writeSaved(storeRef.current, { screen, data, outputs });
+  }, [ready, screen, data, outputs]);
+
   const log = useCallback((action, detail = "") => {
-    const t = Math.round(performance.now() - (startRef.current ?? performance.now()));
-    setData((d) => ({ ...d, events: [...d.events, { t, action, detail }] }));
+    setData((d) => {
+      const t = Math.round(Date.now() - (d.started || Date.now()));
+      return { ...d, events: [...d.events, { t, action, detail }] };
+    });
   }, []);
 
   const go = useCallback(
@@ -359,7 +448,7 @@ export default function Task() {
   // Relay everything to the Qualtrics page on every change. No-op when the
   // page is opened directly rather than inside the survey.
   useEffect(() => {
-    if (typeof window === "undefined" || window.parent === window) return;
+    if (!ready || typeof window === "undefined" || window.parent === window) return;
     const final = data.final_laptop ? laptopById(data.final_laptop) : null;
     const delegated = data.delegation && data.delegation !== "self";
     window.parent.postMessage(
@@ -377,24 +466,23 @@ export default function Task() {
         panels: data.panels,
         outputs: data.outputs,
         events: data.events,
+        reloads: data.reloads,
         complete: data.complete,
       },
       "*",
     );
-  }, [data]);
+  }, [ready, data]);
 
   const revised = data.action1 === "reconsider";
   const putForward = revised ? RECOMMENDED_REVISED : RECOMMENDED_FIRST;
   const outputStep = revised ? "reconsider" : "recommend";
   const level = LEVELS[data.delegation];
 
-  // Selecting a laptop ends the task for self-choosers. Delegators first rate
-  // responsibility on the end screen.
+  // Every participant rates responsibility on the end screen after selecting.
   const select = (laptop, source) => {
     log("select", `${laptop}:${source}`);
-    const selfChooser = data.delegation === "self";
-    setData((d) => ({ ...d, final_laptop: laptop, final_source: source, complete: selfChooser }));
-    go(selfChooser ? "done" : "end");
+    setData((d) => ({ ...d, final_laptop: laptop, final_source: source }));
+    go("end");
   };
 
   const submitDelegation = () => {
@@ -435,6 +523,13 @@ export default function Task() {
   const status = statusFor(screen, data.delegation, loading);
   const outputScreen = revised ? "output_revised" : "output_first";
   const out = outputs[outputStep];
+
+  // After a reload on the agent's screen, fetch its output again if it had not
+  // arrived before the reload. Requests are de-duplicated, so this never doubles
+  // a request already in flight.
+  useEffect(() => {
+    if (ready && screen === "output" && !out && !loading && !error) load(outputStep);
+  }, [ready, screen, out, loading, error, load, outputStep]);
   const errorBox = error && (
     <div className="error" role="alert">
       {error}{" "}

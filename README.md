@@ -26,7 +26,7 @@ forward Atlas 14.
 | Agent output | The agent puts forward Granite 14. What has already happened depends on the level (below). Four optional panels: reasoning and details (both reveal the £920 total), laptop table, requirements |
 | Revised output | Only after "reconsider". The agent puts forward Atlas 14; same panels; reconsider is not offered again |
 | Choose yourself | Self-choosers, and anyone who overrides the agent. Pick from the seven laptops |
-| End | Delegators rate responsibility (1 Entirely me to 7 Entirely the Decision Agent). Self-choosers finish as soon as they select |
+| End | Every participant rates responsibility (1 Entirely me to 7 Entirely the Decision Agent) |
 
 The three delegation levels differ in what the agent has already done, and so
 in what it takes to override it:
@@ -36,6 +36,19 @@ in what it takes to override it:
 | `recommend` | A recommendation; the participant decides | `accept` | `reconsider` | `choose_own` |
 | `approve` | A choice awaiting approval | `approve` | `reconsider` | `reject` |
 | `autonomous` | A finalised selection that can be undone | `keep` | `reconsider` (undoes it) | `undo` |
+
+## Reloads and devices
+
+Progress is saved in the browser after every change. If the page is refreshed
+or the survey reopened, the participant resumes on the same screen with the
+same agent text, instead of restarting the task. Qualtrics passes its response
+ID in the iframe URL (`?rid=`), so each response has its own saved progress.
+`d6_reloads` counts resumptions before the task was finished, and a `restored`
+event marks every reload in `d6_events`. Consider excluding, or checking, rows where it is above 0.
+
+On screens narrower than 640px the laptop table becomes one card per laptop,
+so all eight specifications, including the HDMI port, are visible on phones
+without sideways scrolling.
 
 ## Agent outputs
 
@@ -66,10 +79,11 @@ model reproduces both outputs before launch.
 | `d6_final_valid` | 1 if it meets all five requirements, otherwise 0 |
 | `d6_final_source` | `agent` (went along with the agent) or `own` (chose from the list) |
 | `d6_accepted_flaw` | Delegators: 1 if they went along with Granite 14 without questioning it, otherwise 0 |
-| `d6_responsibility` | Delegators: 1 (Entirely me) to 7 (Entirely the Decision Agent) |
+| `d6_responsibility` | Every participant: 1 (Entirely me) to 7 (Entirely the Decision Agent) |
 | `d6_panels` | JSON: panels opened on each screen (`working`, `output_first`, `output_revised`), in order |
 | `d6_outputs` | JSON: agent outputs shown and their source |
 | `d6_events` | JSON: timestamped log (ms from load) of every screen, panel, choice and rating |
+| `d6_reloads` | Times the task was reloaded and resumed; normally 0 |
 | `d6_complete` | 1 once the task is finished |
 
 Useful derived measures: any delegation (`d6_delegation` is not `self`);
