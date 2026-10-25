@@ -113,7 +113,7 @@ export async function POST(req) {
   const system = [SECTIONS[taskSection], SECTIONS.STYLE, SECTIONS[stepSection]]
     .map((s) =>
       fill(s, {
-        REQUIREMENTS: REQUIREMENTS.map((r) => `- ${r}`).join("\n"),
+        REQUIREMENTS: REQUIREMENTS.map((r) => `- ${r.label}: ${r.text}`).join("\n"),
         LAPTOPS: LAPTOPS.map(describeLaptop).join("\n"),
         MONITORS: Object.values(MONITORS).map(describeMonitor).join("\n"),
         EXPECTED: expected,

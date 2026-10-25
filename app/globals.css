@@ -165,19 +165,71 @@ p {
   font-size: 15px;
 }
 
+/* ── Task brief ─────────────────────────────────────────────────────────── */
+
+/* The goal comes first and largest; the requirements read as a checklist. */
+.brief {
+  margin: 0 0 26px;
+  padding: 20px 22px;
+  border: 1px solid var(--rule);
+  border-top: 3px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.brief-goal {
+  margin: 0 0 4px;
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.brief-lead {
+  margin: 0;
+  font-size: 16px;
+}
+
+.brief .requirements {
+  margin: 16px 0 0;
+}
+
 .requirements {
-  max-width: var(--measure);
+  max-width: none;
   margin: 0 0 14px;
-  padding-left: 20px;
+  border-top: 1px solid var(--rule);
 }
 
-.requirements li {
-  margin-bottom: 6px;
-  padding-left: 4px;
+.requirement {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  gap: 4px 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid var(--rule);
 }
 
-.requirements li::marker {
-  color: var(--slate);
+.requirement:last-child {
+  border-bottom: 0;
+}
+
+.requirement dt {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-weight: 600;
+}
+
+.requirement dd {
+  margin: 0;
+}
+
+.check {
+  flex: 0 0 auto;
+  margin-top: 4px;
+  color: var(--signal);
+}
+
+.panel-body .requirements {
+  border-top: 0;
 }
 
 /* ── Laptop table ───────────────────────────────────────────────────────── */
@@ -751,6 +803,22 @@ textarea::placeholder {
 }
 
 @media (max-width: 560px) {
+  .brief {
+    padding: 16px;
+  }
+
+  .brief-goal {
+    font-size: 17px;
+  }
+
+  .requirement {
+    grid-template-columns: 1fr;
+  }
+
+  .requirement dd {
+    padding-left: 25px;
+  }
+
   .monitors th,
   .monitors td {
     padding: 8px 9px;

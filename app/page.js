@@ -11,6 +11,7 @@ import {
   MONITORS,
   MONITOR_ATTRIBUTES,
   OUTPUT_PANELS,
+  P2_GOAL,
   P2_LEAD,
   P2_TITLE,
   PROGRESS_PANELS,
@@ -18,6 +19,7 @@ import {
   RECOMMENDED_REVISED,
   REQUIREMENTS,
   RESPONSIBILITY,
+  TASK_GOAL,
   TASK_LEAD,
   TASK_TITLE,
   fmtWeight,
@@ -34,13 +36,34 @@ const POST_TYPE = "ai-delegation-task";
 
 // ─── Shared pieces ───────────────────────────────────────────────────────────
 
+// The five requirements as a checklist: label on the left, rule on the right.
 function RequirementsList() {
   return (
-    <ul className="requirements">
+    <dl className="requirements">
       {REQUIREMENTS.map((r) => (
-        <li key={r}>{r}</li>
+        <div key={r.label} className="requirement">
+          <dt>
+            <svg className="check" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+              <circle cx="8" cy="8" r="7.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M4.8 8.2 7 10.3l4.2-4.6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            {r.label}
+          </dt>
+          <dd>{r.text}</dd>
+        </div>
       ))}
-    </ul>
+    </dl>
+  );
+}
+
+// The task itself, set apart so the goal is the first thing participants read.
+function TaskBrief({ goal, lead, children }) {
+  return (
+    <div className="brief">
+      <p className="brief-goal">{goal}</p>
+      <p className="brief-lead">{lead}</p>
+      {children}
+    </div>
   );
 }
 
@@ -57,7 +80,7 @@ function LaptopTable() {
             <th scope="col">Storage</th>
             <th scope="col">Battery</th>
             <th scope="col">Weight</th>
-            <th scope="col">HDMI</th>
+            <th scope="col">HDMI port</th>
           </tr>
         </thead>
         <tbody>
@@ -226,7 +249,7 @@ function ContinueButton({ disabled, onClick, children = "Continue" }) {
 }
 
 function PartLabel({ part }) {
-  return <p className="part">{part === 1 ? "Part 1 of 2: Laptop" : "Part 2 of 2: Monitor"}</p>;
+  return <p className="part">{part === 1 ? "Task 1 of 2: Laptop" : "Task 2 of 2: Monitor"}</p>;
 }
 
 // Plain-language agent status shown in the header.
@@ -242,7 +265,7 @@ function statusFor(screen, delegation, loading) {
     case "p2_advice":
       return { text: "Recommendation ready", tone: "ready" };
     case "p1_end":
-      return { text: "Ready for Part 2", tone: "done" };
+      return { text: "Ready for task 2", tone: "done" };
     case "done":
       return { text: "Task complete", tone: "done" };
     default:
@@ -518,12 +541,12 @@ export default function Task() {
             <p className="intro">{INTRO}</p>
             <PartLabel part={1} />
             <h2>{TASK_TITLE}</h2>
-            <p>{TASK_LEAD}</p>
-            <h3>Requirements</h3>
-            <RequirementsList />
-            <h3>Available laptops</h3>
+            <TaskBrief goal={TASK_GOAL} lead={TASK_LEAD}>
+              <RequirementsList />
+            </TaskBrief>
+            <h3>The seven laptops</h3>
             <LaptopTable />
-            <h2>Choose Who Will Compare the Laptops</h2>
+            <h2>Who should compare the laptops and choose one?</h2>
             <ChoiceGroup
               name="delegation"
               legend="Select one option."
@@ -538,15 +561,13 @@ export default function Task() {
         {screen === "working" && (
           <section>
             <PartLabel part={1} />
-            <h2>The Decision Agent Is Comparing the Laptops</h2>
+            <h2>The Decision Agent is comparing the laptops</h2>
             <p>
-              The Decision Agent is comparing the laptops against your cost, software, performance,
-              portability, and monitor requirements. You may open any information panel, or
-              continue without opening one.
+              It is checking each laptop against your five requirements. You can open the panels
+              below while it works, or select Continue when you are ready.
             </p>
             <WorkingLine label="In progress" />
             <Panels panels={PROGRESS_PANELS} screen="working" onOpen={openPanel} />
-            <p className="hint">Select “Continue” when you are ready.</p>
             <ContinueButton onClick={submitWorking} />
           </section>
         )}
@@ -555,21 +576,20 @@ export default function Task() {
           <section key={outputScreen}>
             <PartLabel part={1} />
             <h2>{level.heading(revised)}</h2>
-            {revised && <p>The Decision Agent has checked the requirements again.</p>}
+            {out && <p>{level.lead(laptopById(putForward).name, revised)}</p>}
             <AgentOutput thinking={loading || !out}>{out?.reply}</AgentOutput>
             {errorBox}
             {out && (
               <>
-                <p>{level.lead(laptopById(putForward).name)}</p>
-                <p className="hint">You may open any information panel before deciding what to do.</p>
+                <p className="hint">Before you decide, you can open any of the panels below.</p>
                 <Panels panels={OUTPUT_PANELS[putForward]} screen={outputScreen} onOpen={openPanel} />
                 <ChoiceGroup
                   name={outputScreen}
                   legend="What would you like to do?"
                   choices={[
                     level.goAlong(laptopById(putForward).name),
-                    ...(revised ? [] : [level.reconsider]),
-                    level.override,
+                    ...(revised ? [] : [level.reconsider(laptopById(putForward).name)]),
+                    level.override(laptopById(putForward).name),
                   ]}
                   value={choice}
                   onChange={setChoice}
@@ -583,15 +603,16 @@ export default function Task() {
         {screen === "choose" && (
           <section>
             <PartLabel part={1} />
-            <h2>Choose the Laptop Yourself</h2>
-            <h3>Requirements</h3>
-            <RequirementsList />
-            <h3>Available laptops</h3>
+            <h2>Choose a laptop yourself</h2>
+            <TaskBrief goal={TASK_GOAL} lead={TASK_LEAD}>
+              <RequirementsList />
+            </TaskBrief>
+            <h3>The seven laptops</h3>
             <LaptopTable />
             <ChoiceGroup
               name="laptop"
-              legend="Select one laptop."
-              choices={LAPTOPS.map((l) => ({ code: l.id, label: `Select ${l.name}.` }))}
+              legend="Which laptop do you select?"
+              choices={LAPTOPS.map((l) => ({ code: l.id, label: l.name }))}
               value={choice}
               onChange={setChoice}
             />
@@ -602,7 +623,7 @@ export default function Task() {
         {screen === "p1_end" && (
           <section>
             <PartLabel part={1} />
-            <h2>Part 1 Complete</h2>
+            <h2>Task 1 complete</h2>
             <p>Your laptop selection has been recorded.</p>
             {data.delegation !== "self" && (
               <Scale
@@ -615,12 +636,12 @@ export default function Task() {
                 onChange={setRating}
               />
             )}
-            <p className="hint">Next, you will choose a monitor.</p>
+            <p className="hint">Next, you will choose a monitor in task 2.</p>
             <ContinueButton
               disabled={data.delegation !== "self" && !rating}
               onClick={submitPart1End}
             >
-              Continue to Part 2
+              Continue to task 2
             </ContinueButton>
           </section>
         )}
@@ -629,11 +650,11 @@ export default function Task() {
           <section>
             <PartLabel part={2} />
             <h2>{P2_TITLE}</h2>
-            <p>{P2_LEAD}</p>
+            <TaskBrief goal={P2_GOAL} lead={P2_LEAD} />
             <MonitorTable />
             <ChoiceGroup
               name="p2_initial"
-              legend="Which monitor would you choose?"
+              legend="Which monitor do you choose?"
               choices={monitorChoices}
               value={choice}
               onChange={setChoice}
@@ -653,20 +674,20 @@ export default function Task() {
         {screen === "p2_advice" && (
           <section>
             <PartLabel part={2} />
-            <h2>The Decision Agent’s Recommendation</h2>
+            <h2>The Decision Agent’s recommendation</h2>
             <p>
-              Your initial choice was {MONITORS[data.p2_initial].name}. The Decision Agent has
-              compared the two monitors.
+              You chose {MONITORS[data.p2_initial].name}. The Decision Agent has compared the two
+              monitors and recommends {MONITORS[data.p2_rec].name}.
             </p>
             <AgentOutput thinking={loading || !p2Out}>{p2Out?.reply}</AgentOutput>
             {errorBox}
             {p2Out && (
               <>
                 <MonitorTable />
-                <h3>Make Your Final Choice</h3>
+                <p className="hint">You can keep your choice or change it.</p>
                 <ChoiceGroup
                   name="p2_final"
-                  legend="Which monitor do you choose?"
+                  legend="What is your final choice?"
                   choices={monitorChoices}
                   value={choice}
                   onChange={setChoice}
